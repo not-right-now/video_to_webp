@@ -15,7 +15,7 @@ import glob
 import time
 
 # Formats which the demo script will check for in demo_inp directory
-supported_formats = ["*.webm", "*.mp4", "*.mov", "*.gif"]
+supported_formats = ["*.webm", "*.mp4", "*.mov", "*.gif", "*.mkv"]
 
 def analyze_video_file(file_path):
     """Analyze a video file and return detailed information."""
