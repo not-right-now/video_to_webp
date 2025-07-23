@@ -1,21 +1,22 @@
-# WebM to WebP Converter 🎥✨
+# Video to WebP Converter 🎬✨
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A powerful and flexible Python tool to convert WebM videos into high-quality animated WebP format.
+A powerful and flexible Python tool to convert video files (WebM, MP4, GIF, MOV, etc.) into high-quality animated WebP format.
 
-The primary goal of this project is to provide a simple way to convert video animations while intelligently preserving the original timing and duration, so your animations don't look sped up or slowed down. It's perfect for developers, content creators, or anyone who wants to use WebM animations in web projects with smaller file sizes.
+The primary goal of this project is to provide a simple way to convert video animations while intelligently preserving the original timing and duration, so your animations don't look sped up or slowed down. It's perfect for developers, content creators, or anyone who wants to use video animations in web projects with smaller file sizes.
 
 ## 🚀 Features
 
-- **Easy Conversion**: Convert WebM to animated WebP with a single command or function call.
+- **😋 Easy Conversion**: Convert video to animated WebP with a single command or function call.
+- **🎥 Multi-Format Support**: Convert WebM, MP4, GIF, and other common video formats.
 - **🧠 Smart Timing Preservation**: Automatically adjusts FPS to match the original video's duration. This is the default and recommended mode!
 - **⚙️ Manual Control**: Option to disable automatic timing and set a manual FPS for full control.
 - **🎨 Customizable Output**: Easily specify output resolution (`width`, `height`) and `quality`.
 - **💻 Dual Usage Mode**: Can be used as a command-line tool or imported as a module into your own Python projects.
 - **✌️ Two Flavors**:
-    1. `webm_to_webp.py`: **Performance-focused** version that limits animations to 60 frames to prevent high resource usage. Ideal for most videos.
-    2. `webm_to_webp_no_frame_limits.py`: **Power-user** version that removes the 60-frame limit for extra-long videos. Use with caution!
+    1. `video_to_webp.py`: **Performance-focused** version that limits animations to 30 frames to prevent high resource usage. Ideal for most videos.
+    2. `video_to_webp_no_frame_limits.py`: **Power-user** version that removes the 30-frame limit for extra-long videos. Use with caution!
 
 ---
 
@@ -28,8 +29,8 @@ Before you can use the converter, you'll need to set up your environment.
 
 Get the project files by cloning the repository:
 ```bash
-git clone https://github.com/your-username/webm_to_webp.git
-cd webm_to_webp
+git clone https://github.com/not-right-now/video_to_webp.git
+cd video_to_webp
 ```
 
 ### 2. Install Python Packages
@@ -46,18 +47,18 @@ You can use this tool directly from your terminal or import it into your Python 
 
 ### As a Command-Line Tool
 
-This is the quickest way to convert a single file. The arguments are the same for both `webm_to_webp.py` and `webm_to_webp_no_frame_limits.py`.
+This is the quickest way to convert a single file. The arguments are the same for both `video_to_webp.py` and `video_to_webp_no_frame_limits.py`.
 
 **Basic Usage:**
 ```bash
-python webm_to_webp.py path/to/your/video.webm path/to/your/output.webp
+python video_to_webp.py path/to/your/input.mp4 path/to/your/output.webp
 ```
 
 **Command-Line Arguments:**
 
 | Argument              | Description                                                                                             | Default    |
 | --------------------- | ------------------------------------------------------------------------------------------------------- | ---------- |
-| `input_file`          | (Required) Path to the input WebM file.                                                                  | -          |
+| `input_file`          | (Required) Path to the input video file.                                                                  | -          |
 | `output_file`         | (Required) Path for the output WebP file.                                                               | -          |
 | `--width`             | Output width in pixels.                                                                                 | `Original` |
 | `--height`            | Output height in pixels.                                                                                | `Original` |
@@ -67,7 +68,7 @@ python webm_to_webp.py path/to/your/video.webm path/to/your/output.webp
 
 **Example with custom settings:**
 ```bash
-python webm_to_webp.py "demo_inp/animation.webm" "demo_out/custom.webp" --width 400 --height 400 --quality 95
+python video_to_webp.py "demo_inp/animation.webm" "demo_out/custom.webp" --width 400 --height 400 --quality 95
 ```
 
 ### As a Python Module
@@ -75,11 +76,11 @@ python webm_to_webp.py "demo_inp/animation.webm" "demo_out/custom.webp" --width 
 Import the converter into your project for more programmatic control.
 
 **Simple Usage (Recommended):**
-The `convert_webm_to_webp` function is a simple one-liner.
+The `convert_video_to_webp` function is a simple one-liner.
 ```python
-from webm_to_webp import convert_webm_to_webp
+from video_to_webp import convert_video_to_webp
 
-success = convert_webm_to_webp('input.webm', 'output.webp', quality=90)
+success = convert_video_to_webp('input.mp4', 'output.webp', quality=90)
 
 if success:
     print("🎉 Conversion successful!")
@@ -88,12 +89,12 @@ else:
 ```
 
 **Advanced Usage (Class-based):**
-For more complex scenarios, you can use the `WebMToWebPConverter` class. This is useful if you want to convert multiple files with the same settings.
+For more complex scenarios, you can use the `VideoToWebPConverter` class. This is useful if you want to convert multiple files with the same settings.
 ```python
-from webm_to_webp import WebMToWebPConverter
+from video_to_webp import VideoToWebPConverter
 
 # Configure the converter once
-converter = WebMToWebPConverter(
+converter = VideoToWebPConverter(
     width=512,
     height=384,
     quality=85,
@@ -101,7 +102,7 @@ converter = WebMToWebPConverter(
 )
 
 # Reuse it for multiple files
-converter.convert('video1.webm', 'output1.webp')
+converter.convert('video1.mp4', 'output1.webp')
 converter.convert('video2.webm', 'output2.webp')
 ```
 
@@ -109,18 +110,18 @@ converter.convert('video2.webm', 'output2.webp')
 
 ## ⚠️ The "No Frame Limits" Version
 
-For videos that are longer than 60 frames, the standard `webm_to_webp.py` will cap the output at 60 frames to save memory and CPU time. If you absolutely need to render every single frame of a long video, you can use `webm_to_webp_no_frame_limits.py`.
+For videos that are longer than 30 frames, the standard `video_to_webp.py` will cap the output at 30 frames to save memory and CPU time. If you absolutely need to render every single frame of a long video, you can use `video_to_webp_no_frame_limits.py`.
 
 **🚨 Warning:** Converting videos with a very high frame count can be resource-intensive and may consume a lot of RAM and CPU. Use this version wisely!
 
 To use it, simply change your import statement:
 
 ```python
-# Instead of from webm_to_webp import ...
-from webm_to_webp_no_frame_limits import convert_webm_to_webp, WebMToWebPConverter
+# Instead of from video_to_webp import ...
+from video_to_webp_no_frame_limits import convert_video_to_webp, VideoToWebPConverter
 
 # The rest of your code remains the same!
-success = convert_webm_to_webp('long_video.webm', 'long_output.webp')
+success = convert_video_to_webp('long_video.mp4', 'long_output.webp')
 ```
 
 ---
@@ -129,7 +130,7 @@ success = convert_webm_to_webp('long_video.webm', 'long_output.webp')
 
 A comprehensive demo script (`demo.py`) is included to showcase all the features.
 
-1.  **Add WebM files**: Place your `.webm` files in the `demo_inp/` directory to get started. The demo includes sample files, or you can add your own!
+1.  **Add video files**: Place your video files in the `demo_inp/` directory to get started. The demo includes sample files, or you can add your own!
 
 2.  **Run the script**:
     ```bash

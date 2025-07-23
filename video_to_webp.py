@@ -1,8 +1,8 @@
 """
-WebM to WebP Converter Module (with no frames limit)
+Video to WebP Converter Module supports many video formats like WEBM, MP4, GIF, MOV, MKV, etc.
 
-A simple Python module for converting WebM videos to animated WebP format.
-This version removes frame limits for extra-long videos. Use with caution!
+A simple Python module for converting various video formats (WebM, MP4, etc.) to animated WebP.
+Features smart timing preservation and performance optimization.
 """
 
 import os
@@ -13,8 +13,8 @@ import argparse
 import sys
 
 
-class WebMToWebPConverter:
-    """Converter class for WebM to animated WebP conversion with automatic timing preservation."""
+class VideoToWebPConverter:
+    """Converter class for Video to animated WebP conversion with automatic timing preservation."""
     
     def __init__(self, width: int = -1, height: int = -1, fps: float = 30.0, quality: int = 80, preserve_timing: bool = True):
         """
@@ -25,7 +25,7 @@ class WebMToWebPConverter:
             height: Output height in pixels (-1 for original)
             fps: Target frames per second (ignored if preserve_timing=True)
             quality: WebP quality (0-100)
-            preserve_timing: If True, preserves original fps and timing
+            preserve_timing: If True, automatically adjusts FPS to preserve original video timing
         """
         self.width = width
         self.height = height
@@ -36,10 +36,10 @@ class WebMToWebPConverter:
     
     def _extract_video_frames(self, video_path: str):
         """
-        Extract frames from WebM video using OpenCV.
+        Extract frames from video using OpenCV.
         
         Args:
-            video_path: Path to WebM video file
+            video_path: Path to the input video file
             
         Returns:
             Tuple of (frames_list, original_fps, total_frames, original_width, original_height)
@@ -59,19 +59,47 @@ class WebMToWebPConverter:
             original_fps = 30.0  # Default fallback
             
         frames = []
+        frame_count = 0
         
         if self.preserve_timing:
-            # Use original FPS to preserve timing
+            # Calculate original duration in seconds
             original_duration = total_frames / original_fps
-            print(f"Maintaining the original {original_fps:.1f}fps and {original_duration:.2f}s duration")
-            self._calculated_fps = original_fps
+            
+            # Determine optimal output settings to preserve timing
+            max_frames = 30  # Performance limit
+            
+            if total_frames <= max_frames:
+                # For short videos, keep all frames and adjust FPS to maintain duration
+                target_frames = total_frames
+                output_fps = target_frames / original_duration
+                print(f"Preserving all {target_frames} frames, adjusting FPS to {output_fps:.1f} to maintain {original_duration:.2f}s duration")
+            else:
+                # For long videos, limit frames but maintain duration
+                target_frames = max_frames
+                output_fps = target_frames / original_duration
+                print(f"Limiting to {max_frames} frames, adjusting FPS to {output_fps:.1f} to maintain {original_duration:.2f}s duration")
+                
+            self._calculated_fps = output_fps
+            
+            # Calculate frame step for sampling
+            frame_step = total_frames / target_frames if target_frames > 0 else 1
         else:
-            print(f"Adjusting frames per second to {self.fps}")
+            # Use manual frame limiting
+            max_frames = 30
+            target_frames = min(total_frames, max_frames)
+            if total_frames > max_frames:
+                print(f"Limiting video to {max_frames} frames for performance")
             self._calculated_fps = self.fps
+            frame_step = total_frames / target_frames if target_frames > 0 else 1
         
-        # Extract all frames (no limit in this version)
-        frame_count = 0
-        while frame_count < total_frames:
+        # Extract frames
+        current_frame_pos = 0.0
+        target_frame_count = 0
+        
+        while frame_count < total_frames and target_frame_count < target_frames:
+            # Set frame position
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int(current_frame_pos))
+            
             ret, frame = cap.read()
             if not ret:
                 break
@@ -96,12 +124,16 @@ class WebMToWebPConverter:
                     pil_image = pil_image.resize((new_width, self.height), Image.LANCZOS)
             
             frames.append(pil_image)
+            
+            # Move to next frame position
+            current_frame_pos += frame_step
+            target_frame_count += 1
             frame_count += 1
         
         cap.release()
         
         if not frames:
-            raise ValueError("No frames could be extracted from WebM file")
+            raise ValueError("No frames could be extracted from video file")
             
         return frames, original_fps, total_frames, original_width, original_height
     
@@ -134,28 +166,28 @@ class WebMToWebPConverter:
         
         return img
     
-    def convert(self, webm_path: str, webp_path: str) -> bool:
+    def convert(self, video_path: str, webp_path: str) -> bool:
         """
-        Convert WebM file to animated WebP.
+        Convert video file to animated WebP.
         
         Args:
-            webm_path: Path to input WebM file
+            video_path: Path to input video file
             webp_path: Path to output WebP file
             
         Returns:
             True if conversion successful, False otherwise
             
         Raises:
-            FileNotFoundError: If WebM file doesn't exist
-            ValueError: If WebM file is invalid
+            FileNotFoundError: If the video file doesn't exist
+            ValueError: If the video file is invalid
             IOError: If output file cannot be written
         """
-        if not os.path.exists(webm_path):
-            raise FileNotFoundError(f"WebM file not found: {webm_path}")
+        if not os.path.exists(video_path):
+            raise FileNotFoundError(f"Video file not found: {video_path}")
         
         try:
-            # Extract frames from WebM
-            frames, original_fps, total_frames, original_width, original_height = self._extract_video_frames(webm_path)
+            # Extract frames from video
+            frames, original_fps, total_frames, original_width, original_height = self._extract_video_frames(video_path)
             
             if not frames:
                 # Create fallback frames
@@ -191,14 +223,14 @@ class WebMToWebPConverter:
             raise IOError(f"Conversion failed: {e}")
 
 
-def convert_webm_to_webp(webm_path: str, webp_path: str, 
+def convert_video_to_webp(video_path: str, webp_path: str, 
                         width: int = -1, height: int = -1, 
                         fps: float = 30.0, quality: int = 80, preserve_timing: bool = True) -> bool:
     """
-    Simple function to convert WebM to animated WebP with automatic timing preservation.
+    Simple function to convert a video file to animated WebP with automatic timing preservation.
     
     Args:
-        webm_path: Path to input WebM file
+        video_path: Path to input video file
         webp_path: Path to output WebP file
         width: Output width in pixels (default: Original)
         height: Output height in pixels (default: Original)
@@ -210,15 +242,15 @@ def convert_webm_to_webp(webm_path: str, webp_path: str,
         True if conversion successful, False otherwise
         
     Example:
-        >>> from webm_to_webp_no_frame_limits import convert_webm_to_webp
+        >>> from video_to_webp import convert_video_to_webp
         >>> # Automatic timing preservation (recommended)
-        >>> success = convert_webm_to_webp('video.webm', 'video.webp')
+        >>> success = convert_video_to_webp('video.mp4', 'video.webp')
         >>> # Manual FPS control
-        >>> success = convert_webm_to_webp('video.webm', 'video.webp', fps=20, preserve_timing=False)
+        >>> success = convert_video_to_webp('video.mp4', 'video.webp', fps=20, preserve_timing=False)
     """
-    converter = WebMToWebPConverter(width, height, fps, quality, preserve_timing)
+    converter = VideoToWebPConverter(width, height, fps, quality, preserve_timing)
     try:
-        return converter.convert(webm_path, webp_path)
+        return converter.convert(video_path, webp_path)
     except Exception as e:
         print(f"Error during conversion: {e}")
         return False
@@ -226,12 +258,12 @@ def convert_webm_to_webp(webm_path: str, webp_path: str,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Convert WebM videos to animated WebP (no frame limits).",
+        description="Convert video files (WebM, MP4, etc.) to animated WebP.",
         formatter_class=argparse.RawTextHelpFormatter
     )
 
     # Required positional arguments
-    parser.add_argument("input_file", help="Path to the input WebM file.")
+    parser.add_argument("input_file", help="Path to the input video file.")
     parser.add_argument("output_file", help="Path for the output WebP file.")
 
     # Optional arguments
@@ -247,8 +279,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Call the main function with the parsed arguments
-    success = convert_webm_to_webp(
-        webm_path=args.input_file,
+    success = convert_video_to_webp(
+        video_path=args.input_file,
         webp_path=args.output_file,
         width=args.width,
         height=args.height,

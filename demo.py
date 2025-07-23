@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 """
-Comprehensive demo of the WebM to WebP Converter with automatic timing preservation.
+Comprehensive demo of the Video to WebP Converter with automatic timing preservation.
 
 This demo shows various usage patterns and provides detailed information about
 the conversion process and results.
 """
 
 import shutil
-from webm_to_webp import convert_webm_to_webp, WebMToWebPConverter
+from video_to_webp import convert_video_to_webp, VideoToWebPConverter
 import cv2
 from PIL import Image
 import os
 import glob
 import time
 
+# Formats which the demo script will check for in demo_inp directory
+supported_formats = ["*.webm", "*.mp4", "*.mov", "*.gif"]
 
-def analyze_webm_file(file_path):
-    """Analyze a WebM file and return detailed information."""
+def analyze_video_file(file_path):
+    """Analyze a video file and return detailed information."""
     try:
         print(f"    📁 Analyzing: {os.path.basename(file_path)}")
         
@@ -75,11 +77,15 @@ def demo_basic_conversion():
     """Demo 1: Basic conversion with automatic timing preservation."""
     print("🟢 Demo 1: Basic Conversion (Recommended)")
     print("=" * 50)
-    print("Using simple convert_webm_to_webp() with automatic timing preservation\nDimensions: Original  Quality: Default(80)")
+    print("Using simple convert_video_to_webp() with automatic timing preservation\nDimensions: Original  Quality: Default(80)")
     
-    input_files = glob.glob("demo_inp/*.webm")
+    # Find all supported video files
+    input_files = []
+    for fmt in supported_formats:
+        input_files.extend(glob.glob(f"demo_inp/{fmt}"))
+
     if not input_files:
-        print("❌ No WebM files found in demo_inp/")
+        print(f"❌ No video files {supported_formats} found in demo_inp/")
         return False
     
     success_count = 0
@@ -87,14 +93,14 @@ def demo_basic_conversion():
         print(f"\n📂 Converting file {i}/{len(input_files)}")
         
         # Analyze input
-        orig_frames, orig_fps, orig_duration, orig_width, orig_height = analyze_webm_file(input_file)
+        orig_frames, orig_fps, orig_duration, orig_width, orig_height = analyze_video_file(input_file)
         
         # Convert with automatic timing
         output_file = f"demo_out/basic_{i}.webp"
         print(f"    🔄 Converting with automatic timing preservation...")
         
         start_time = time.time()
-        success = convert_webm_to_webp(input_file, output_file)
+        success = convert_video_to_webp(input_file, output_file)
         conversion_time = time.time() - start_time
         
         if success:
@@ -114,8 +120,13 @@ def demo_custom_settings():
     print("=" * 50)
     print("Using custom width, height, and quality settings\nAutomatic timing preservation: Enabled")
     
-    input_files = glob.glob("demo_inp/*.webm")
+    # Find all supported video files
+    input_files = []
+    for fmt in supported_formats:
+        input_files.extend(glob.glob(f"demo_inp/{fmt}"))
+
     if not input_files:
+        print(f"❌ No video files {supported_formats} found in demo_inp/")
         return False
     
     # Different resolution settings to test
@@ -131,11 +142,11 @@ def demo_custom_settings():
         input_file = input_files[0]  # Use first file
         output_file = f"demo_out/custom_{setting['name']}.webp"
         
-        analyze_webm_file(input_file)
+        analyze_video_file(input_file)
         
         print(f"    🔄 Converting...")
         start_time = time.time()
-        success = convert_webm_to_webp(
+        success = convert_video_to_webp(
             input_file, 
             output_file,
             width=setting['width'],
@@ -152,17 +163,22 @@ def demo_custom_settings():
 
 
 def demo_class_usage():
-    """Demo 3: Using the WebMToWebPConverter class."""
+    """Demo 3: Using the VideoToWebPConverter class."""
     print("\n\n🟣 Demo 3: Class-Based Usage")
     print("=" * 50)
-    print("Using WebMToWebPConverter class for advanced control")
+    print("Using VideoToWebPConverter class for advanced control")
     
-    input_files = glob.glob("demo_inp/*.webm")
+    # Find all supported video files
+    input_files = []
+    for fmt in supported_formats:
+        input_files.extend(glob.glob(f"demo_inp/{fmt}"))
+
     if not input_files:
+        print(f"❌ No video files {supported_formats} found in demo_inp/")
         return False
     
     # Create converter with custom settings
-    converter = WebMToWebPConverter(
+    converter = VideoToWebPConverter(
         width=512,
         height=384,
         quality=85,
@@ -174,7 +190,7 @@ def demo_class_usage():
     for i, input_file in enumerate(input_files, 1):
         print(f"\n📂 Processing file {i}/{len(input_files)} with class")
         
-        analyze_webm_file(input_file)
+        analyze_video_file(input_file)
         
         output_file = f"demo_out/class_{i}.webp"
         print(f"    🔄 Converting using class method...")
@@ -196,17 +212,22 @@ def demo_manual_timing():
     print("=" * 50)
     print("Demonstrating manual FPS control by disabling automatic timing\nResolution: Original and Quality: Default")
     
-    input_files = glob.glob("demo_inp/*.webm")
+    # Find all supported video files
+    input_files = []
+    for fmt in supported_formats:
+        input_files.extend(glob.glob(f"demo_inp/{fmt}"))
+
     if not input_files:
+        print(f"❌ No video files {supported_formats} found in demo_inp/")
         return False
     
     input_file = input_files[0]  # Use first file
     
     print(f"🎛️  Testing manual FPS settings on: {os.path.basename(input_file)}")
-    analyze_webm_file(input_file)
+    analyze_video_file(input_file)
     
     # Test different manual FPS settings
-    fps_settings = [10, 15, 30]
+    fps_settings = [10, 15, 30, 60]
     
     for fps in fps_settings:
         print(f"\n🎯 Manual FPS: {fps}")
@@ -214,7 +235,7 @@ def demo_manual_timing():
         
         print(f"    🔄 Converting with preserve_timing=False, fps={fps}...")
         start_time = time.time()
-        success = convert_webm_to_webp(
+        success = convert_video_to_webp(
             input_file, 
             output_file,
             fps=fps,
@@ -230,7 +251,7 @@ def demo_manual_timing():
 
 
 def main():
-    print("🎬 WebM to WebP Converter - Comprehensive Demo")
+    print("🎬 Video to WebP Converter - Comprehensive Demo")
     print("=" * 60)
     print("This demo shows the automatic timing preservation feature")
     print("and various usage patterns of the converter.\n")
@@ -239,14 +260,17 @@ def main():
     os.makedirs("demo_out", exist_ok=True)
     
     # Check for input files
-    input_files = glob.glob("demo_inp/*.webm")
+    # Find all supported video files
+    input_files = []
+    for fmt in supported_formats:
+        input_files.extend(glob.glob(f"demo_inp/{fmt}"))
     if not input_files:
-        print("❌ No WebM files found in demo_inp/ directory")
-        print("Please add some .webm files to demo_inp/ and run again.")
-        print("📋 Tip: You can use any WebM video files for testing.")
+        print("❌ No video files found in demo_inp/ directory")
+        print("Please add some video files to demo_inp/ and run again.")
+        print("📋 Tip: You can use any video files for testing.")
         return
     
-    print(f"📁 Found {len(input_files)} WebM files in demo_inp/:")
+    print(f"📁 Found {len(input_files)} video files in demo_inp/:")
     for f in input_files:
         print(f"   • {os.path.basename(f)}")
     
@@ -267,7 +291,7 @@ def main():
         print("=" * 60)
         print("Key takeaways:")
         print("✅ Automatic timing preservation works perfectly")
-        print("✅ Simple API: convert_webm_to_webp('input.webm', 'output.webp')")
+        print("✅ Simple API: convert_video_to_webp('input.mp4', 'output.webp')")
         print("✅ Custom settings available for resolution and quality")
         print("✅ Class-based usage for advanced scenarios")
         print("✅ Manual timing override available when needed")
@@ -283,8 +307,8 @@ def main():
                 print(f"   • {os.path.basename(f)} ({size:,} bytes)")
         
         print("\n💡 Usage in your projects (see README.md for more advanced usage):")
-        print("   from webm_to_webp import convert_webm_to_webp")
-        print("   success = convert_webm_to_webp('video.webm', 'video.webp')")
+        print("   from video_to_webp import convert_video_to_webp")
+        print("   success = convert_video_to_webp('video.mp4', 'video.webp')")
         
     except Exception as e:
         print(f"\n❌ Demo failed with error: {e}")
