@@ -12,11 +12,13 @@ The primary goal of this project is to provide a simple way to convert video ani
 - **🎥 Multi-Format Support**: Convert WebM, MP4, GIF, and other common video formats.
 - **🧠 Smart Timing Preservation**: Automatically adjusts FPS to match the original video's duration. This is the default and recommended mode!
 - **⚙️ Manual Control**: Option to disable automatic timing and set a manual FPS for full control.
+- **📦 Intelligent File Size Compression**: A special version of the script automatically adjusts quality and frame count to meet a file size target (e.g., under 500KB).
 - **🎨 Customizable Output**: Easily specify output resolution (`width`, `height`) and `quality`.
 - **💻 Dual Usage Mode**: Can be used as a command-line tool or imported as a module into your own Python projects.
-- **✌️ Two Flavors**:
-    1. `video_to_webp.py`: **Performance-focused** version that limits animations to 30 frames to prevent high resource usage. Ideal for most videos.
-    2. `video_to_webp_no_frame_limits.py`: **Power-user** version that removes the 30-frame limit for extra-long videos. Use with caution!
+- **✌️ Three Flavors**:
+    1. `video_to_webp.py`: **Performance-focused** version that limits animations to 180 frames to prevent high resource usage. Ideal for most videos.
+    2. `video_to_webp_no_frame_limits.py`: **Power-user** version that removes the 180-frame limit for extra-long videos. Use with caution!
+    3. `video_to_webp_with_size_restriction.py`: **Size-conscious** version that automatically adjusts quality and frame count to keep the output file under a size cap (~500KB). Perfect for platforms with strict upload limits.
 
 ---
 
@@ -108,9 +110,33 @@ converter.convert('video2.webm', 'output2.webp')
 
 ---
 
+## 📦 The "File Size Restricted" Version
+
+Do you need your final WebP file to be under a certain size (e.g., 500KB)? The `video_to_webp_with_size_restriction.py` script is your solution! It uses a smart optimization algorithm to find the best combination of frame count and quality to meet a target file size.
+
+**🚨 Warning:** This process can be slower than the other scripts because it has to pre-render all frames and then run multiple compression tests to find the optimal result.
+
+To use it, simply point to the correct script file:
+
+**Command-Line:**
+```bash
+python video_to_webp_with_size_restriction.py your_video.webm your_output.webp
+```
+
+**Python Module:**
+```python
+# Import from the size-restricted script
+from video_to_webp_with_size_restriction.py import convert_video_to_webp
+
+# The rest of your code remains the same!
+success = convert_video_to_webp('animation.mp4', 'output_under_500kb.webp')
+```
+
+---
+
 ## ⚠️ The "No Frame Limits" Version
 
-For videos that are longer than 30 frames, the standard `video_to_webp.py` will cap the output at 30 frames to save memory and CPU time. If you absolutely need to render every single frame of a long video, you can use `video_to_webp_no_frame_limits.py`.
+For videos that are longer than 180 frames, the standard `video_to_webp.py` will cap the output at 180 frames to save memory and CPU time. If you absolutely need to render every single frame of a long video, you can use `video_to_webp_no_frame_limits.py`.
 
 **🚨 Warning:** Converting videos with a very high frame count can be resource-intensive and may consume a lot of RAM and CPU. Use this version wisely!
 
