@@ -7,11 +7,11 @@ This version removes frame limits for extra-long videos. Use with caution!
 
 import os
 import cv2
-import tempfile
 from PIL import Image, ImageDraw
 import argparse
 import sys
-
+import webp
+import time
 
 class VideoToWebPConverter:
     """Converter class for video to animated WebP conversion with automatic timing preservation."""
@@ -32,78 +32,42 @@ class VideoToWebPConverter:
         self.fps = fps
         self.quality = quality
         self.preserve_timing = preserve_timing
-        self._calculated_fps = fps
     
-    def _extract_video_frames(self, video_path: str):
+    def _extract_all_frames_from_video(self, video_path: str):
         """
-        Extract frames from video using OpenCV.
-        
-        Args:
-            video_path: Path to the input video file
-            
-        Returns:
-            Tuple of (frames_list, original_fps, total_frames, original_width, original_height)
+        Extracts all frames from video using OpenCV, resizing if necessary.
         """
         cap = cv2.VideoCapture(video_path)
-        
         if not cap.isOpened():
             raise ValueError(f"Could not open video file: {video_path}")
-        
-        # Get video properties
-        original_fps = cap.get(cv2.CAP_PROP_FPS)
+
+        # Get original video dimensions for aspect ratio calculations
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        original_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        original_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        
-        if original_fps <= 0:
-            original_fps = 30.0  # Default fallback
-            
+
         frames = []
-        
-        if self.preserve_timing:
-            # Use original FPS to preserve timing
-            original_duration = total_frames / original_fps
-            print(f"Maintaining the original {original_fps:.1f}fps and {original_duration:.2f}s duration")
-            self._calculated_fps = original_fps
-        else:
-            print(f"Adjusting frames per second to {self.fps}")
-            self._calculated_fps = self.fps
-        
-        # Extract all frames (no limit in this version)
         frame_count = 0
         while frame_count < total_frames:
             ret, frame = cap.read()
             if not ret:
                 break
-                
-            # Convert BGR to RGB (OpenCV uses BGR by default)
+
+            # Convert BGR to RGB
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            
-            # Convert to PIL Image
             pil_image = Image.fromarray(frame_rgb)
-            
-            # Resize if custom dimensions specified
+
+            # Handle resizing if requested
             if self.width != -1 and self.height != -1:
                 pil_image = pil_image.resize((self.width, self.height), Image.LANCZOS)
-            elif self.width != -1 or self.height != -1:
-                # Maintain aspect ratio if only one dimension specified
-                aspect_ratio = original_width / original_height
-                if self.width != -1:
-                    new_height = int(self.width / aspect_ratio)
-                    pil_image = pil_image.resize((self.width, new_height), Image.LANCZOS)
-                else:
-                    new_width = int(self.height * aspect_ratio)
-                    pil_image = pil_image.resize((new_width, self.height), Image.LANCZOS)
-            
+
             frames.append(pil_image)
             frame_count += 1
-        
+
         cap.release()
-        
+
         if not frames:
             raise ValueError("No frames could be extracted from video file")
-            
-        return frames, original_fps, total_frames, original_width, original_height
+
+        return frames
     
     def _create_fallback_frame(self, width: int, height: int, frame_num: int, total_frames: int) -> Image.Image:
         """Create a simple fallback frame when video processing fails."""
@@ -137,58 +101,66 @@ class VideoToWebPConverter:
     def convert(self, video_path: str, webp_path: str) -> bool:
         """
         Convert video file to animated WebP.
-        
-        Args:
-            video_path: Path to input video file
-            webp_path: Path to output WebP file
-            
-        Returns:
-            True if conversion successful, False otherwise
-            
-        Raises:
-            FileNotFoundError: If the video file doesn't exist
-            ValueError: If the video file is invalid
-            IOError: If output file cannot be written
         """
+        start_time = time.monotonic()
+
         if not os.path.exists(video_path):
             raise FileNotFoundError(f"Video file not found: {video_path}")
-        
+
         try:
-            # Extract frames from video
-            frames, original_fps, total_frames, original_width, original_height = self._extract_video_frames(video_path)
+            # Step 1: Get video properties first
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                raise ValueError(f"Could not open video file: {video_path}")
+
+            original_fps = cap.get(cv2.CAP_PROP_FPS)
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            original_duration = (total_frames / original_fps) if original_fps > 0 else 0
+            cap.release()
+
+            if total_frames <= 0:
+                raise ValueError("Video file appears to have no frames.")
             
+            print(f"Found {total_frames} frames to process.")
+
+            # Step 2: Extract all frames from the video
+            frames = self._extract_all_frames_from_video(video_path)
+
             if not frames:
                 # Create fallback frames
                 fallback_width = self.width if self.width != -1 else 400
                 fallback_height = self.height if self.height != -1 else 300
                 frames = [self._create_fallback_frame(fallback_width, fallback_height, i, 10) for i in range(10)]
-                self._calculated_fps = 10.0
+                output_fps = 10.0
                 print("Warning: Using fallback frames due to video processing failure")
-            
-            # Calculate frame duration in milliseconds
-            frame_duration = int(1000 / self._calculated_fps)
-            
-            # Ensure output directory exists
-            output_dir = os.path.dirname(webp_path)
-            if output_dir and not os.path.exists(output_dir):
-                os.makedirs(output_dir, exist_ok=True)
-            
-            # Save as animated WebP
-            frames[0].save(
+            else:
+                # Step 3: Determine the output FPS based on the mode
+                if self.preserve_timing:
+                    print(f"Preserving timing: Using original FPS of {original_fps:.2f}")
+                    output_fps = original_fps
+                else:
+                    print(f"Not preserving timing: Using specified FPS of {self.fps}.")
+                    output_fps = self.fps
+
+            if output_fps <= 0: output_fps = 1  # Avoid division by zero
+
+            # Step 4: Save as animated WebP using the webp library
+            webp.save_images(
+                frames,
                 webp_path,
-                format='WebP',
-                save_all=True,
-                append_images=frames[1:],
-                duration=frame_duration,
-                loop=0,  # Infinite loop
-                quality=self.quality,
-                method=6  # Best quality method
+                fps=output_fps,
+                quality=self.quality
             )
-            
+
             return True
-            
+
         except Exception as e:
             raise IOError(f"Conversion failed: {e}")
+        
+        finally:
+            end_time = time.monotonic()
+            duration = end_time - start_time
+            print(f"⌛ Total time taken: {duration:.2f} seconds.")
 
 
 def convert_video_to_webp(video_path: str, webp_path: str, 
