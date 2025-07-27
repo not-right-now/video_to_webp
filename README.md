@@ -27,7 +27,40 @@ The primary goal of this project is to provide a simple way to convert video ani
 Before you can use the converter, you'll need to set up your environment.
 
 
-### 1. Clone the Repository
+### 1. Install System Dependencies (Crucial Step!)
+
+This tool relies on **FFmpeg** to decode videos. You must have FFmpeg installed on your system for the Python `av` library to work.
+
+* **On Fedora, CentOS, or RHEL (using DNF):**
+    *(You'll likely need the RPM Fusion repository enabled for this)*
+    ```bash
+    sudo dnf install ffmpeg
+    ```
+
+* **On Debian/Ubuntu (using APT):**
+    ```bash
+    sudo apt update && sudo apt install ffmpeg
+    ```
+
+* **On macOS (using Homebrew):**
+    ```bash
+    brew install ffmpeg
+    ```
+
+* **On Windows (using Chocolatey or Scoop):**
+    * With Chocolatey:
+        ```powershell
+        choco install ffmpeg
+        ```
+    * With Scoop:
+        ```powershell
+        scoop install ffmpeg
+        ```
+
+> **Note:** The `webp` Python library typically bundles the necessary `libwebp` binaries, but if you encounter issues, you may need to install the `libwebp-devel` (or similar) package from your system's package manager.
+
+
+### 2. Clone the Repository
 
 Get the project files by cloning the repository:
 ```bash
@@ -35,7 +68,31 @@ git clone https://github.com/not-right-now/video_to_webp.git
 cd video_to_webp
 ```
 
-### 2. Install Python Packages
+### 3. Create and Activate a Virtual Environment
+
+It's highly recommended to use a virtual environment to keep project dependencies isolated.
+
+1.  **Create the environment** (run this inside the project folder):
+    ```bash
+    python3 -m venv venv
+    ```
+
+2.  **Activate the environment**:
+    -   **On macOS and Linux:**
+        ```bash
+        source venv/bin/activate
+        ```
+    -   **On Windows (Command Prompt):**
+        ```bash
+        venv\Scripts\activate.bat
+        ```
+    -   **On Windows (PowerShell):**
+        ```powershell
+        venv\Scripts\Activate.ps1
+        ```
+    > You will know the environment is active when you see `(venv)` at the beginning of your command prompt.
+
+### 4. Install Python Packages
 
 Install the required Python libraries using the `requirements.txt` file:
 ```bash
