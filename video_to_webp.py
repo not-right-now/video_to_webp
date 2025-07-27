@@ -155,7 +155,7 @@ class VideoToWebPConverter:
 
         try:
             # Step 1: Extract only the specific frames we need (maintain cap)
-            max_frames = 30
+            max_frames = 180
             frames ,original_total_frames, original_duration = self._extract_frames_from_video(video_path,max_frames)
             # Total frames after processing
             total_frames = len(frames)
