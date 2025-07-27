@@ -8,7 +8,7 @@ the conversion process and results.
 
 import shutil
 from video_to_webp import convert_video_to_webp, VideoToWebPConverter
-import cv2
+import av
 from PIL import Image
 import os
 import glob
@@ -22,24 +22,36 @@ def analyze_video_file(file_path):
     try:
         print(f"    📁 Analyzing: {os.path.basename(file_path)}")
         
-        cap = cv2.VideoCapture(file_path)
-        if not cap.isOpened():
-            print(f"    ❌ Could not open video file")
-            return None, None, None, None, None
-        
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        duration = total_frames / fps if fps > 0 else 0
-        
-        cap.release()
-        
-        print(f"    ⏱️  Original: {total_frames} frames at {fps:.1f} FPS")
-        print(f"    📐 Resolution: {width}x{height}")
-        print(f"    🕐 Duration: {duration:.3f} seconds")
-        
-        return total_frames, fps, duration, width, height
+
+        with av.open(file_path) as container:
+            if not container.streams.video:
+                raise ValueError("The provided file has no video streams.")
+            stream = container.streams.video[0]
+            # FPS
+            fps = stream.average_rate or 30.0
+            # Total frames
+            if stream.frames > 0:
+                total_frames = stream.frames
+            else:
+                total_frames = int((container.duration / 1_000_000) * fps)
+            # Height and width
+            width = stream.width
+            height = stream.height
+            # Calculate video duration 
+            if container.duration:
+                duration = float(container.duration / av.time_base)
+            elif stream.duration and stream.time_base:
+                duration = float(stream.duration * stream.time_base)
+                
+            # Fallback if duration metadata is still missing
+            if duration == 0:
+                duration = total_frames / float(fps)
+            
+            print(f"    ⏱️  Original: {total_frames} frames at {fps:.1f} FPS")
+            print(f"    📐 Resolution: {width}x{height}")
+            print(f"    🕐 Duration: {duration:.3f} seconds")
+            
+            return total_frames, fps, duration, width, height
         
     except Exception as e:
         print(f"    ❌ Analysis failed: {e}")
