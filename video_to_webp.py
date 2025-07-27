@@ -6,13 +6,12 @@ Features smart timing preservation and performance optimization.
 """
 
 import os
-import cv2
 from PIL import Image, ImageDraw
 import argparse
 import sys
 import webp
 import time
-
+import av
 
 class VideoToWebPConverter:
     """Converter class for Video to animated WebP conversion with automatic timing preservation."""
@@ -34,73 +33,75 @@ class VideoToWebPConverter:
         self.quality = quality
         self.preserve_timing = preserve_timing
 
-
-    def _extract_frames_from_video(self, video_path: str, total_frames: int, max_frames: int):
+    @staticmethod
+    def _select_indices(total_frames: int, count: int) -> list[int]:
         """
-        Extracts all frames from a video file using OpenCV and returns them as PIL Images.
+        Selects a specific `count` of frame indices from a total number of frames.
         """
+        if count <= 0 or total_frames <= 0:
+            return []
+        if count == 1:
+            return [0]
+        if count >= total_frames:
+            return list(range(total_frames))
 
-        @staticmethod
-        def _select_indices(total_frames: int, count: int) -> list[int]:
-            """
-            Selects a specific `count` of frame indices from a total number of frames.
-            """
-            if count <= 0 or total_frames <= 0:
-                return []
-            if count == 1:
-                return [0]  # Return the first frame if only one is requested
-            if count >= total_frames:
-                return list(range(total_frames)) # Return all indices if count is high enough
+        indices = [int(i * (total_frames - 1) / (count - 1)) for i in range(count)]
+        return indices
 
-            # This logic ensures perfect, even distribution including the first and last frame
-            indices = [int(i * (total_frames - 1) / (count - 1)) for i in range(count)]
-            return indices
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            raise ValueError(f"Could not open video file: {video_path}")
-
-        # Get video properties
-        original_fps = cap.get(cv2.CAP_PROP_FPS)
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-        if original_fps <= 0: original_fps = 30.0 # Default fallback
-        if total_frames <= 0: raise ValueError("Video file appears to have no frames.")
-
-        indices_set = _select_indices(total_frames, max_frames)
-        max_index = -1
-        if indices_set:
-            max_index = max(indices_set)
-
+    def _extract_frames_from_video(self, video_path: str, count: int):
+        """
+        Decodes all frames from a video file into a list of PIL Images.
+        """
         frames = []
-        frame_count = 0
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
+        original_duration = 0.0
+        try:
+            with av.open(video_path) as container:
+                if not container.streams.video:
+                    raise ValueError("The provided file has no video streams.")
+                stream = container.streams.video[0]
 
-            # We only process the frame if its index is one we want to grab.
-            if frame_count in indices_set:
-                # Convert BGR (OpenCV) to RGB (PIL)
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                pil_image = Image.fromarray(frame_rgb)
+                # Calculate total frames using the stream's duration
+                original_fps = stream.average_rate or 30.0
 
-                # Handle resizing if requested
-                if self.width != -1 and self.height != -1:
-                    pil_image = pil_image.resize((self.width, self.height), Image.LANCZOS)
+                if stream.frames > 0:
+                    total_frames = stream.frames
+                else:
+                    total_frames = int((container.duration / 1_000_000) * original_fps)
+                _count = 0
+                # Extract frames
+                indices_to_extract = set(self._select_indices(total_frames, count))
+                for frame in container.decode(stream):
+                    # Append frames to the frames list
+                    if _count in indices_to_extract:
+                        pil_image = frame.to_image()
+                        # resize if needed
+                        if self.width != -1 and self.height != -1:
+                            pil_image = pil_image.resize((self.width, self.height), Image.LANCZOS)
+                        frames.append(pil_image)
 
-                frames.append(pil_image)
-            
-            frame_count += 1
-            
-            # ADDED: A smart optimization to stop reading the video file early
-            # once we have all the frames we need.
-            if max_index != -1 and frame_count > max_index:
-                break
+                    _count += 1
+                if not frames:
+                    raise ValueError("Video file appears to have no frames.")
 
-        cap.release()
-        
-        # Return the list of frames.
-        return frames
+                # Calculate video duration 
+                if container.duration:
+                    original_duration = float(container.duration / av.time_base)
+                elif stream.duration and stream.time_base:
+                    original_duration = float(stream.duration * stream.time_base)
+                
+                # Fallback if duration metadata is still missing
+                if original_duration == 0:
+                    original_duration = total_frames / float(original_fps)
+                
+                print(f"Video details: {original_duration:.2f}s duration, {stream.width}x{stream.height} resolution.")
+
+        except Exception as e:
+            print(e)
+            raise ValueError(f"Could not decode video file with PyAV: {video_path}") from e
+
+        return frames, total_frames, original_duration
+    
+    
     
     def _create_fallback_frame(self, width: int, height: int, frame_num: int, total_frames: int) -> Image.Image:
         """Create a simple fallback frame when video processing fails."""
@@ -153,43 +154,32 @@ class VideoToWebPConverter:
             raise FileNotFoundError(f"Video file not found: {video_path}")
 
         try:
-            # Step 1: Extract basic video info
-            cap = cv2.VideoCapture(video_path)
-            if not cap.isOpened():
-                raise ValueError(f"Could not open video file: {video_path}")
-            
-            original_fps = cap.get(cv2.CAP_PROP_FPS)
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            original_duration = (total_frames / original_fps) if original_fps > 0 else 0
-            cap.release() 
-            
-            if total_frames <= 0:
-                raise ValueError("Video file appears to have no frames.")
-
-            # Step 2: Decide exactly which frames to extract using our helper method
-            max_frames = 180
-            if total_frames > max_frames:
-                print(f"Video has {total_frames} frames.Limiting video to {max_frames} frames for performance.")
-            else:
-                print(f"Preserving all {total_frames} frames.")
-
-            # Step 3: Extract only the specific frames we need
-            frames = self._extract_frames_from_video(video_path, total_frames, max_frames)
-
-
+            # Step 1: Extract only the specific frames we need (maintain cap)
+            max_frames = 30
+            frames ,original_total_frames, original_duration = self._extract_frames_from_video(video_path,max_frames)
+            # Total frames after processing
+            total_frames = len(frames)
             if not frames:
                 # Create fallback frames if extraction fails
-                fallback_width = self.width if self.width != -1 else 400
-                fallback_height = self.height if self.height != -1 else 300
-                frames = [self._create_fallback_frame(fallback_width, fallback_height, i, 10) for i in range(10)]
-                output_fps = 10.0
                 print("Warning: Using fallback frames due to video processing failure")
-            
+                fallback_width = self.width if self.width != -1 else 512
+                fallback_height = self.height if self.height != -1 else 512
+                frames = [self._create_fallback_frame(fallback_width, fallback_height, i, 10) for i in range(10)]
+                output_fps = 10.0 
+
             else:
+                # logging details
+                if original_total_frames > max_frames:
+                    print(f"Video has {original_total_frames} frames.Limiting video to {max_frames} frames for performance.")
+                else:
+                    print(f"Preserving all {original_total_frames} frames.")
+
                 # Step 2: Apply timing and frame sampling logic
                 if self.preserve_timing:
                     # Adjust FPS to maintain the original duration with the new frame count
-                    output_fps = len(frames) / original_duration if original_duration > 0 else self.fps
+                    if original_duration > 0:
+                        output_fps = total_frames / original_duration
+                    
 
                 else:
                     # If not preserving timing, just cap the frames
@@ -198,12 +188,12 @@ class VideoToWebPConverter:
             
             if output_fps <= 0: output_fps = 1 # Avoid zero
             
-            # # Ensure output directory exists
-            # output_dir = os.path.dirname(webp_path)
-            # if output_dir and not os.path.exists(output_dir):
-            #     os.makedirs(output_dir, exist_ok=True)
+            # Ensure output directory exists
+            output_dir = os.path.dirname(webp_path)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir, exist_ok=True)
 
-            # Step 4: Save as animated WebP
+            # Step 3: Save as animated WebP
             webp.save_images(
                 frames, 
                 webp_path, 

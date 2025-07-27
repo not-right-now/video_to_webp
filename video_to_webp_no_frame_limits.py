@@ -6,12 +6,12 @@ This version removes frame limits for extra-long videos. Use with caution!
 """
 
 import os
-import cv2
 from PIL import Image, ImageDraw
 import argparse
 import sys
 import webp
 import time
+import av
 
 class VideoToWebPConverter:
     """Converter class for video to animated WebP conversion with automatic timing preservation."""
@@ -35,39 +35,52 @@ class VideoToWebPConverter:
     
     def _extract_all_frames_from_video(self, video_path: str):
         """
-        Extracts all frames from video using OpenCV, resizing if necessary.
+        Decodes all frames from a video file into a list of PIL Images.
         """
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            raise ValueError(f"Could not open video file: {video_path}")
-
-        # Get original video dimensions for aspect ratio calculations
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
         frames = []
-        frame_count = 0
-        while frame_count < total_frames:
-            ret, frame = cap.read()
-            if not ret:
-                break
+        original_duration = 0.0
+        try:
+            with av.open(video_path) as container:
+                if not container.streams.video:
+                    raise ValueError("The provided file has no video streams.")
+                stream = container.streams.video[0]
 
-            # Convert BGR to RGB
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            pil_image = Image.fromarray(frame_rgb)
+                # Calculate total frames using the stream's duration
+                original_fps = stream.average_rate or 30.0
 
-            # Handle resizing if requested
-            if self.width != -1 and self.height != -1:
-                pil_image = pil_image.resize((self.width, self.height), Image.LANCZOS)
+                if stream.frames > 0:
+                    total_frames = stream.frames
+                else:
+                    total_frames = int((container.duration / 1_000_000) * original_fps)
 
-            frames.append(pil_image)
-            frame_count += 1
+                # Extract frames
+                for frame in container.decode(stream):
+                    pil_image = frame.to_image()
+                    # resize if needed
+                    if self.width != -1 and self.height != -1:
+                        pil_image = pil_image.resize((self.width, self.height), Image.LANCZOS)
+                    frames.append(pil_image)
 
-        cap.release()
+                if not frames:
+                    raise ValueError("Video file appears to have no frames.")
 
-        if not frames:
-            raise ValueError("No frames could be extracted from video file")
+                # Calculate video duration 
+                if container.duration:
+                    original_duration = float(container.duration / av.time_base)
+                elif stream.duration and stream.time_base:
+                    original_duration = float(stream.duration * stream.time_base)
+                
+                # Fallback if duration metadata is still missing
+                if original_duration == 0:
+                    original_duration = total_frames / float(original_fps)
+                
+                print(f"Video details: {original_duration:.2f}s duration, {stream.width}x{stream.height} resolution.")
 
-        return frames
+        except Exception as e:
+            print(e)
+            raise ValueError(f"Could not decode video file with PyAV: {video_path}") from e
+
+        return frames, total_frames, original_fps
     
     def _create_fallback_frame(self, width: int, height: int, frame_num: int, total_frames: int) -> Image.Image:
         """Create a simple fallback frame when video processing fails."""
@@ -108,33 +121,23 @@ class VideoToWebPConverter:
             raise FileNotFoundError(f"Video file not found: {video_path}")
 
         try:
-            # Step 1: Get video properties first
-            cap = cv2.VideoCapture(video_path)
-            if not cap.isOpened():
-                raise ValueError(f"Could not open video file: {video_path}")
-
-            original_fps = cap.get(cv2.CAP_PROP_FPS)
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            original_duration = (total_frames / original_fps) if original_fps > 0 else 0
-            cap.release()
+            # Step 1: Extract frames and get video properties 
+            print("Rendering all original frames... this might take a moment.")
+            frames, total_frames, original_fps = self._extract_all_frames_from_video(video_path)
 
             if total_frames <= 0:
                 raise ValueError("Video file appears to have no frames.")
             
             print(f"Found {total_frames} frames to process.")
-
-            # Step 2: Extract all frames from the video
-            frames = self._extract_all_frames_from_video(video_path)
-
             if not frames:
                 # Create fallback frames
-                fallback_width = self.width if self.width != -1 else 400
-                fallback_height = self.height if self.height != -1 else 300
+                print("Warning: Using fallback frames due to video processing failure")
+                fallback_width = self.width if self.width != -1 else 512
+                fallback_height = self.height if self.height != -1 else 512
                 frames = [self._create_fallback_frame(fallback_width, fallback_height, i, 10) for i in range(10)]
                 output_fps = 10.0
-                print("Warning: Using fallback frames due to video processing failure")
             else:
-                # Step 3: Determine the output FPS based on the mode
+                # Step 2: Determine the output FPS based on the mode
                 if self.preserve_timing:
                     print(f"Preserving timing: Using original FPS of {original_fps:.2f}")
                     output_fps = original_fps
@@ -142,9 +145,14 @@ class VideoToWebPConverter:
                     print(f"Not preserving timing: Using specified FPS of {self.fps}.")
                     output_fps = self.fps
 
-            if output_fps <= 0: output_fps = 1  # Avoid division by zero
+            if output_fps <= 0: output_fps = 1  # Avoid zero
 
-            # Step 4: Save as animated WebP using the webp library
+            # Ensure output directory exists
+            output_dir = os.path.dirname(webp_path)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir, exist_ok=True)
+            
+            # Step 3: Save as animated WebP using the webp library
             webp.save_images(
                 frames,
                 webp_path,
