@@ -32,7 +32,6 @@ Before you can use the converter, you'll need to set up your environment.
 This tool relies on **FFmpeg** to decode videos. You must have FFmpeg installed on your system for the Python `av` library to work.
 
 * **On Fedora, CentOS, or RHEL (using DNF):**
-    *(You'll likely need the RPM Fusion repository enabled for this)*
     ```bash
     sudo dnf install ffmpeg
     ```
