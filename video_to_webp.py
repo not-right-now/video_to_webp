@@ -60,15 +60,22 @@ class VideoToWebPConverter:
                     raise ValueError("The provided file has no video streams.")
                 stream = container.streams.video[0]
 
-                # Calculate total frames using the stream's duration
                 original_fps = stream.average_rate or 30.0
 
+                # Calculate total frames using the stream's duration
                 if stream.frames > 0:
                     total_frames = stream.frames
                 else:
                     total_frames = int((container.duration / 1_000_000) * original_fps)
-                _count = 0
+
+                # Logging details
+                if total_frames > count:
+                    print(f"Video has {total_frames} frames.Limiting video to {count} frames for performance.")
+                else:
+                    print(f"Preserving all {total_frames} frames.")
+
                 # Extract frames
+                _count = 0
                 indices_to_extract = set(self._select_indices(total_frames, count))
                 for frame in container.decode(stream):
                     # Append frames to the frames list
@@ -99,7 +106,7 @@ class VideoToWebPConverter:
             print(e)
             raise ValueError(f"Could not decode video file with PyAV: {video_path}") from e
 
-        return frames, total_frames, original_duration
+        return frames, original_duration
     
     
     
@@ -156,7 +163,7 @@ class VideoToWebPConverter:
         try:
             # Step 1: Extract only the specific frames we need (maintain cap)
             max_frames = 180
-            frames ,original_total_frames, original_duration = self._extract_frames_from_video(video_path,max_frames)
+            frames, original_duration = self._extract_frames_from_video(video_path,max_frames)
             # Total frames after processing
             total_frames = len(frames)
             if not frames:
@@ -168,12 +175,6 @@ class VideoToWebPConverter:
                 output_fps = 10.0 
 
             else:
-                # logging details
-                if original_total_frames > max_frames:
-                    print(f"Video has {original_total_frames} frames.Limiting video to {max_frames} frames for performance.")
-                else:
-                    print(f"Preserving all {original_total_frames} frames.")
-
                 # Step 2: Apply timing and frame sampling logic
                 if self.preserve_timing:
                     # Adjust FPS to maintain the original duration with the new frame count
