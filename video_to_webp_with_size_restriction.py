@@ -131,8 +131,9 @@ class VideoToWebPConverter:
                 # Calculate total frames using the stream's duration
                 if stream.frames > 0:
                     total_frames = stream.frames
+                    print("if")
                 else:
-                    total_frames = int((container.duration / 1_000_000) * original_fps)
+                    total_frames = round((container.duration / 1_000_000) * original_fps)
                 # Logging details 
                 if total_frames > count:
                     print(f"Video has {total_frames} frames. Limiting video to {count} frames for performance.")
@@ -259,7 +260,7 @@ class VideoToWebPConverter:
         
         # ---  Step 2: start searching for best size  ---
 
-        print(f"Aiming for a file size under {SIZE_CAP_KB}KB.")
+        print(f"🔊 Video file found, aiming for a file size under {SIZE_CAP_KB}KB.")
 
         # Stage A: Try with max frames at default quality
         print(f"[*] Stage A: Testing with {len(final_frames)} frames @ Q={final_quality}...")
