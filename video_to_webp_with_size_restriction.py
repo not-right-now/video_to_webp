@@ -131,7 +131,6 @@ class VideoToWebPConverter:
                 # Calculate total frames using the stream's duration
                 if stream.frames > 0:
                     total_frames = stream.frames
-                    print("if")
                 else:
                     total_frames = round((container.duration / 1_000_000) * original_fps)
                 # Logging details 
@@ -339,7 +338,7 @@ class VideoToWebPConverter:
         finally:
             end_time = time.monotonic()
             duration = end_time - start_time
-            print(f"⌛ Total time taken: {duration:.2f} seconds.")
+            print(f"⌛ Total time taken: {duration:.2f} seconds.\n")
 
 
 def convert_video_to_webp(video_path: str, webp_path: str, 
