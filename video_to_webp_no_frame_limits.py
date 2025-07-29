@@ -57,7 +57,7 @@ class VideoToWebPConverter:
                 for frame in container.decode(stream):
                     pil_image = frame.to_image()
                     # resize if needed
-                    if self.width != -1 and self.height != -1:
+                    if (self.width != -1 and self.height != -1) and (pil_image.size != (self.width, self.height)):
                         pil_image = pil_image.resize((self.width, self.height), Image.LANCZOS)
                     frames.append(pil_image)
 
