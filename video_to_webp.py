@@ -66,7 +66,7 @@ class VideoToWebPConverter:
                 if stream.frames > 0:
                     total_frames = stream.frames
                 else:
-                    total_frames = int((container.duration / 1_000_000) * original_fps)
+                    total_frames = round((container.duration / 1_000_000) * original_fps)
 
                 # Logging details
                 if total_frames > count:
