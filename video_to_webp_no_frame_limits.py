@@ -11,31 +11,41 @@ import argparse
 import sys
 import webp
 import time
+import math
 import av
 
 class VideoToWebPConverter:
     """Converter class for video to animated WebP conversion with automatic timing preservation."""
     
-    def __init__(self, width: int = -1, height: int = -1, fps: float = 30.0, quality: int = 80, preserve_timing: bool = True):
+    def __init__(self, width: int = -1, height: int = -1, quality: int = 80,
+                keep_aspect: bool = True, allow_upscale: bool = True, pad: bool = True,
+                fps: float = 30.0, preserve_timing: bool = True):       
         """
         Initialize the converter.
         
         Args:
-            width: Output width in pixels (-1 for original)
-            height: Output height in pixels (-1 for original)
-            fps: Target frames per second (ignored if preserve_timing=True)
+            width: Output width in pixels
+            height: Output height in pixels
             quality: WebP quality (0-100)
-            preserve_timing: If True, preserves original fps and timing
+            keep_aspect: Preserve original aspect ratio (default True).
+            allow_upscale: Allow enlarging smaller sources to meet target (default True).
+            pad: When keep_aspect=True, pad with transparent canvas to fill target if True (default).
+                If False, use cover+center-crop mode instead.
+            fps: Target frames per second (ignored if preserve_timing=True)
+            preserve_timing: If True, automatically adjusts FPS to preserve original animation timing
         """
         self.width = width
         self.height = height
-        self.fps = fps
         self.quality = quality
+        self.keep_aspect = keep_aspect
+        self.allow_upscale = allow_upscale
+        self.pad = pad
+        self.fps = fps
         self.preserve_timing = preserve_timing
     
     def _extract_all_frames_from_video(self, video_path: str):
         """
-        Decodes all frames from a video file into a list of PIL Images.
+        Decodes only required frames from a video file into a list of PIL Images.
         """
         frames = []
         original_duration = 0.0
@@ -45,34 +55,128 @@ class VideoToWebPConverter:
                     raise ValueError("The provided file has no video streams.")
                 stream = container.streams.video[0]
 
-                # Calculate total frames using the stream's duration
-                original_fps = stream.average_rate or 30.0
+                original_fps = float(stream.average_rate) if getattr(stream, "average_rate", None) else 30.0
 
-                if stream.frames > 0:
-                    total_frames = stream.frames
-                else:
-                    total_frames = round((container.duration / 1_000_000) * original_fps)
+                # Attempt to get reported container duration (seconds)
+                duration_seconds = None
+                if getattr(container, "duration", None) not in (None, 0):
+                    duration_seconds = float(container.duration) / 1_000_000.0
+                elif getattr(stream, "duration", None) and getattr(stream, "time_base", None):
+                    duration_seconds = float(stream.duration * stream.time_base)
+
+                # Decode all frames but store as av.VideoFrame with timestamps (don't convert to PIL now)
+                decoded = []
+                for frame in container.decode(stream):
+                    # Prefer frame.time (float seconds) if available, else compute from pts & time_base
+                    t = None
+                    if getattr(frame, "time", None) is not None:
+                        t = float(frame.time)
+                    elif getattr(frame, "pts", None) is not None and getattr(frame, "time_base", None) is not None:
+                        t = float(frame.pts * frame.time_base)
+                    decoded.append((t, frame))
+                    
+                if not decoded:
+                    raise ValueError("Video file appears to have no frames.")
+                
+                total_frames = len(decoded)
+
+                # If duration wasn't available, derive it from last decoded timestamp or from frame count & fps
+                if duration_seconds is None or duration_seconds <= 0.0:
+                    last_time = decoded[-1][0]
+                    if last_time is not None and last_time > 0.0:
+                        duration_seconds = last_time
+                    else:
+                        # Fallback: estimate from frame count and average fps (avoid zero)
+                        duration_seconds = max(1.0, total_frames / max(original_fps, 1.0))
+
+                original_duration = duration_seconds
+                # logging
+                print(f"Decoded {total_frames} frames; duration ~ {original_duration:.3f}s; avg_fps={original_fps}")
 
                 # Extract frames
-                for frame in container.decode(stream):
-                    pil_image = frame.to_image()
-                    # resize if needed
-                    if (self.width != -1 and self.height != -1) and (pil_image.size != (self.width, self.height)):
-                        pil_image = pil_image.resize((self.width, self.height), Image.LANCZOS)
-                    frames.append(pil_image)
+                for idx in range(total_frames):
+                    # Append frames to the frames list
+
+                    av_frame = decoded[idx][1]
+                    pil_image = av_frame.to_image()
+                    orig_w, orig_h = pil_image.size
+                    target_w = self.width if self.width != -1 else orig_w
+                    target_h = self.height if self.height != -1 else orig_h
+                    pad_mode = self.pad
+                    # resize logic 
+                    # if haven't given width and height or given but our image is already of that dimension, we need not to resize
+                    if (orig_w, orig_h) == (target_w, target_h):
+                        final_img = pil_image.convert("RGBA")
+                    
+                    else:# nah now we have to resize
+                        if self.keep_aspect:
+                            if pad_mode:
+                                # Fit inside target, then pad (transparent canvas)
+                                scale = min(target_w / orig_w, target_h / orig_h)
+                            else:
+                                # Cover the target, then crop center
+                                scale = max(target_w / orig_w, target_h / orig_h)
+                            # enforce allow_upscale (if manually set to Flase by user) and then we can only pad as cropping won't meet the asked dimensions
+                            if not self.allow_upscale and scale > 1.0:
+                                scale = 1.0
+                                pad_mode = True
+                            if pad_mode:
+                                # fit: make sure new dims are <= target (use floor / clamp)
+                                new_w = max(1, int(math.floor(orig_w * scale)))
+                                new_h = max(1, int(math.floor(orig_h * scale)))
+                                # clamp in case of rounding overshoot
+                                new_w = min(new_w, target_w)
+                                new_h = min(new_h, target_h)
+                            else:
+                                # cover: make sure new dims are >= target (use ceil / ensure minimum)
+                                new_w = max(1, int(math.ceil(orig_w * scale)))
+                                new_h = max(1, int(math.ceil(orig_h * scale)))
+                                if new_w < target_w:
+                                    new_w = target_w
+                                if new_h < target_h:
+                                    new_h = target_h
+                            # scale the image
+                            resized = pil_image.resize((new_w, new_h), Image.LANCZOS).convert("RGBA")
+                            if pad_mode:
+                                # paste centered onto transparent canvas of exact target size
+                                canvas = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
+                                left = (target_w - new_w) // 2
+                                top = (target_h - new_h) // 2
+                                canvas.paste(resized, (left, top), resized)
+                                final_img = canvas
+                            else:
+                                # crop center from resized image (new_w/new_h >= target)
+                                left = (new_w - target_w) // 2
+                                top = (new_h - target_h) // 2
+                                final_img = resized.crop((left, top, left + target_w, top + target_h))
+                        else:
+                            # keep_aspect == False: strict stretch to target, but if upscaling disabled, clamp per-dimension
+                            desired_w, desired_h = target_w, target_h
+                            if not self.allow_upscale:
+                                # clamp each dimension separately so we don't upscale any axis
+                                desired_w = min(desired_w, orig_w)
+                                desired_h = min(desired_h, orig_h)
+                                
+                            if (desired_w, desired_h) == (orig_w, orig_h):
+                                resized = pil_image.convert("RGBA")
+                            else:
+                                resized = pil_image.resize((desired_w, desired_h), Image.LANCZOS).convert("RGBA")
+                            # Ensure final output is exactly target size by centering resized on transparent canvas when needed
+                            if desired_w == target_w and desired_h == target_h:
+                                final_img = resized
+                            else:
+                                canvas = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
+                                left = (target_w - desired_w) // 2
+                                top = (target_h - desired_h) // 2
+                                canvas.paste(resized, (left, top), resized)
+                                final_img = canvas
+                    frames.append(final_img)
 
                 if not frames:
                     raise ValueError("Video file appears to have no frames.")
 
-                # Calculate video duration 
-                if container.duration:
-                    original_duration = float(container.duration / av.time_base)
-                elif stream.duration and stream.time_base:
-                    original_duration = float(stream.duration * stream.time_base)
-                
-                # Fallback if duration metadata is still missing
-                if original_duration == 0:
-                    original_duration = total_frames / float(original_fps)
+
+
                 
                 print(f"Video details: {original_duration:.2f}s duration, {stream.width}x{stream.height} resolution.")
 
@@ -80,7 +184,7 @@ class VideoToWebPConverter:
             print(e)
             raise ValueError(f"Could not decode video file with PyAV: {video_path}") from e
 
-        return frames, total_frames, original_fps
+        return frames, original_duration
     
     def _create_fallback_frame(self, width: int, height: int, frame_num: int, total_frames: int) -> Image.Image:
         """Create a simple fallback frame when video processing fails."""
@@ -123,12 +227,11 @@ class VideoToWebPConverter:
         try:
             # Step 1: Extract frames and get video properties 
             print("Rendering all original frames... this might take a moment.")
-            frames, total_frames, original_fps = self._extract_all_frames_from_video(video_path)
+            frames, original_duration = self._extract_all_frames_from_video(video_path)
 
-            if total_frames <= 0:
-                raise ValueError("Video file appears to have no frames.")
-            
-            print(f"Found {total_frames} frames to process.")
+            total_frames = len(frames)
+            original_fps = total_frames / original_duration
+
             if not frames:
                 # Create fallback frames
                 print("Warning: Using fallback frames due to video processing failure")
@@ -137,6 +240,7 @@ class VideoToWebPConverter:
                 frames = [self._create_fallback_frame(fallback_width, fallback_height, i, 10) for i in range(10)]
                 output_fps = 10.0
             else:
+                print(f"Found {total_frames} frames to process.")
                 # Step 2: Determine the output FPS based on the mode
                 if self.preserve_timing:
                     print(f"Preserving timing: Using original FPS of {original_fps:.2f}")
@@ -172,8 +276,13 @@ class VideoToWebPConverter:
 
 
 def convert_video_to_webp(video_path: str, webp_path: str, 
-                        width: int = -1, height: int = -1, 
-                        fps: float = 30.0, quality: int = 80, preserve_timing: bool = True) -> bool:
+                       width: int = -1, height: int = -1, 
+                       quality: int = 80,
+                       keep_aspect: bool = True,
+                       allow_upscale: bool = True,
+                       pad: bool = True,
+                       fps: float = 30.0, 
+                       preserve_timing: bool = True) -> bool:
     """
     Simple function to convert a video file to animated WebP with automatic timing preservation.
     
@@ -182,21 +291,18 @@ def convert_video_to_webp(video_path: str, webp_path: str,
         webp_path: Path to output WebP file
         width: Output width in pixels (default: Original)
         height: Output height in pixels (default: Original)
-        fps: Target frames per second (ignored if preserve_timing=True, default: 30.0)
         quality: WebP quality 0-100 (default: 80)
-        preserve_timing: Automatically preserve original video timing (default: True)
+        keep_aspect: Preserve original aspect ratio (default True).
+        allow_upscale: Allow enlarging smaller sources to meet target (default True).
+        pad: When keep_aspect=True, pad with transparent canvas to fill target if True (default).
+            If False, use cover+center-crop mode instead.
+        fps: Target frames per second (ignored if preserve_timing=True, default: 30)
+        preserve_timing: Automatically preserve original animation timing (default: True)
         
     Returns:
-        True if conversion successful, False otherwise
-        
-    Example:
-        >>> from video_to_webp_no_frame_limits import convert_video_to_webp
-        >>> # Automatic timing preservation (recommended)
-        >>> success = convert_video_to_webp('video.mp4', 'video.webp')
-        >>> # Manual FPS control
-        >>> success = convert_video_to_webp('video.mp4', 'video.webp', fps=20, preserve_timing=False)
+        True if conversion successful, False otherwise       
     """
-    converter = VideoToWebPConverter(width, height, fps, quality, preserve_timing)
+    converter = VideoToWebPConverter(width, height, quality, keep_aspect, allow_upscale, pad, fps, preserve_timing)
     try:
         return converter.convert(video_path, webp_path)
     except Exception as e:
@@ -221,6 +327,13 @@ if __name__ == "__main__":
     parser.add_argument("--fps", type=float, default=30.0,
                         help="Frames per second. \n(Note: This is ignored by default unless you disable timing preservation).")
 
+    # arguments with a default a boolean flag
+    parser.add_argument("--no-keep-aspect", dest="keep_aspect", action="store_false",
+                        help="Disable preserving aspect ratio (stretch the image).")
+    parser.add_argument("--no-upscale", dest="allow_upscale", action="store_false",
+                        help="Disable upscaling (do not enlarge source).")
+    parser.add_argument("--crop", dest="pad", action="store_false",
+                        help="When keeping aspect, use crop instead of padding.")
     parser.add_argument("--no-preserve-timing", action="store_false", dest="preserve_timing",
                         help="Disable automatic timing preservation to use the manual FPS value.")
 
@@ -233,8 +346,12 @@ if __name__ == "__main__":
         width=args.width,
         height=args.height,
         quality=args.quality,
+        keep_aspect=args.keep_aspect,
+        allow_upscale=args.allow_upscale,
+        pad=args.pad,
         fps=args.fps,
         preserve_timing=args.preserve_timing
+
     )
 
     if success:
@@ -242,3 +359,4 @@ if __name__ == "__main__":
     else:
         print(f"❌ Failed to convert {args.input_file}")
         sys.exit(1)
+
