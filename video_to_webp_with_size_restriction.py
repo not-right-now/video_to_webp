@@ -174,13 +174,6 @@ class VideoToWebPConverter:
 
                 original_fps = float(stream.average_rate) if getattr(stream, "average_rate", None) else 30.0
 
-                # Attempt to get reported container duration (seconds)
-                duration_seconds = None
-                if getattr(container, "duration", None) not in (None, 0):
-                    duration_seconds = float(container.duration) / 1_000_000.0
-                elif getattr(stream, "duration", None) and getattr(stream, "time_base", None):
-                    duration_seconds = float(stream.duration * stream.time_base)
-
                 # Decode all frames but store as av.VideoFrame with timestamps (don't convert to PIL now)
                 decoded = []
                 for frame in container.decode(stream):
@@ -195,16 +188,34 @@ class VideoToWebPConverter:
                 if not decoded:
                     raise ValueError("Video file appears to have no frames.")
                 
-                total_frames = len(decoded)
+                precision = False # if you want precision over reliability for calulating video duratio
 
-                # If duration wasn't available, derive it from last decoded timestamp or from frame count & fps
-                if duration_seconds is None or duration_seconds <= 0.0:
-                    last_time = decoded[-1][0]
-                    if last_time is not None and last_time > 0.0:
-                        duration_seconds = last_time
-                    else:
-                        # Fallback: estimate from frame count and average fps (avoid zero)
-                        duration_seconds = max(1.0, total_frames / max(original_fps, 1.0))
+                total_frames = len(decoded)
+                duration_seconds = None
+                
+                if precision:
+                    if getattr(container, "duration", None) not in (None, 0):
+                        duration_seconds = float(container.duration) / 1_000_000.0
+                    elif getattr(stream, "duration", None) and getattr(stream, "time_base", None):
+                        duration_seconds = float(stream.duration * stream.time_base)
+
+                # Calculating duration from actual frame timestamps, as metadata can be unreliable.
+                last_frame_time = decoded[-1][0]
+                
+                # if the last frame's timestamp is valid
+                if last_frame_time is not None and last_frame_time > 0.0:
+                    # the duration is the timestamp of the last frame.
+                    # We add the duration of one more frame to account for the last frame's display time.
+                    avg_frame_duration = 1.0 / max(original_fps, 1.0)
+                    duration_seconds = last_frame_time + avg_frame_duration
+                else:
+                    # Fallback: If timestamps are zero or None, estimate duration from frame count and FPS.
+                    # This is a last resort for videos with broken time information.
+                    print("-> ⚠️ Warning: Could not determine duration from frame timestamps. Falling back to FPS-based estimation.")
+                    duration_seconds = total_frames / max(original_fps, 1.0)
+                
+                # Ensure we have a small, non-zero duration to prevent division-by-zero errors.
+                original_duration = max(duration_seconds, 1e-6)
 
                 original_duration = duration_seconds
                 # logging
