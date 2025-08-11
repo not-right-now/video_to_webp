@@ -7,8 +7,6 @@ Features smart timing preservation and performance optimization.
 
 import os
 from PIL import Image, ImageDraw
-import argparse
-import sys
 import webp
 import time
 import math
@@ -149,7 +147,9 @@ class VideoToWebPConverter:
                     target_w = self.width if self.width != -1 else orig_w
                     target_h = self.height if self.height != -1 else orig_h
                     pad_mode = self.pad
-                    # resize logic 
+
+                    #  ========== resize logic =========== 
+
                     # if haven't given width and height or given but our image is already of that dimension, we need not to resize
                     if (orig_w, orig_h) == (target_w, target_h):
                         final_img = pil_image.convert("RGBA")
@@ -374,6 +374,8 @@ def convert_video_to_webp(video_path: str, webp_path: str,
 
 
 if __name__ == "__main__":
+    import argparse, sys
+
     parser = argparse.ArgumentParser(
         description="Convert video files (WebM, MP4, etc.) to animated WebP.",
         formatter_class=argparse.RawTextHelpFormatter

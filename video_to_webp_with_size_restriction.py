@@ -9,8 +9,6 @@ Features smart timing preservation and performance optimization.
 import os
 import tempfile
 from PIL import Image
-import argparse
-import sys
 import io
 import time
 import webp
@@ -237,7 +235,9 @@ class VideoToWebPConverter:
                     target_w = self.width if self.width != -1 else orig_w
                     target_h = self.height if self.height != -1 else orig_h
                     pad_mode = self.pad
-                    # resize logic 
+
+                    # ========== resize logic ===========
+                     
                     # if haven't given width and height or given but our image is already of that dimension, we need not to resize
                     if (orig_w, orig_h) == (target_w, target_h):
                         final_img = pil_image.convert("RGBA")
@@ -332,7 +332,7 @@ class VideoToWebPConverter:
 
         MAX_FRAMES_CAP = 30
 
-        # --- Stage 1: Extract Frames From Video while maintaining max frame cap---
+        # ========== Step 1: Extract Frames From Video & get other metatdeta info and all ===========
         try:
             final_frames, original_duration = self._extract_frames_from_video(video_path, MAX_FRAMES_CAP)
         except Exception as e:
@@ -384,7 +384,7 @@ class VideoToWebPConverter:
                 return buffer.getbuffer().nbytes
             return float('inf')
         
-        # ---  Step 2: start searching for best size  ---
+        # =======  Step 2: start searching for best size  ============
 
         print(f"🔊 Video file found, aiming for a file size under {SIZE_CAP_KB}KB.")
 
@@ -448,7 +448,7 @@ class VideoToWebPConverter:
                             current_size = successful_buffer.getbuffer().nbytes if successful_buffer else float('inf')
                             print(f"->⚠️ Extreme compression: 1 frame, Q=1, size {current_size / 1024:.1f}KB.")
 
-        # --- Stage 3: Final Save ---
+        # ======== Step 3: Final Save ==========
         try:
             if successful_buffer:
                 print(f"\nSaving final WebP to '{webp_path}'...")
@@ -502,6 +502,8 @@ def convert_video_to_webp(video_path: str, webp_path: str,
 
 
 if __name__ == "__main__":
+    import argparse, sys
+
     parser = argparse.ArgumentParser(
         description="Convert video files (WebM, MP4, etc.) to animated WebP.",
         formatter_class=argparse.RawTextHelpFormatter
