@@ -1,229 +1,200 @@
-# Video to WebP Converter 🎬✨
+# Video to WebP Converter
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A powerful and flexible Python tool to convert video files (WebM, MP4, GIF, MOV, etc.) into high-quality animated WebP format.
+A flexible Python tool to convert **video files** (WebM, MP4, GIF, MOV, MKV, etc.) into high-quality **animated WebP** format.
 
-The primary goal of this project is to provide a simple way to convert video animations while intelligently preserving the original timing and duration, so your animations don't look sped up or slowed down. It's perfect for developers, content creators, or anyone who wants to use video animations in web projects with smaller file sizes.
+This module decodes videos frame-by-frame with [PyAV](https://github.com/PyAV-Org/PyAV) (FFmpeg) and encodes the result as an animated WebP using [webp](https://github.com/anibali/pywebp), giving you full control over resolution, quality, timing, resize behavior, and file size.
 
-## 🚀 Features
+## Features
 
-- **😋 Easy Conversion**: Convert video to animated WebP with a single command or function call.
-- **🎥 Multi-Format Support**: Convert WebM, MP4, GIF, and other common video formats.
-- **🧠 Smart Timing Preservation**: Automatically adjusts FPS to match the original video's duration. This is the default and recommended mode!
-- **⚙️ Manual Control**: Option to disable automatic timing and set a manual FPS for full control.
-- **📦 Intelligent File Size Compression**: A special version of the script automatically adjusts quality and frame count to meet a file size target (e.g., under 500KB).
-- **🎨 Customizable Output**: Easily specify output resolution (`width`, `height`) and `quality`.
-- **💻 Dual Usage Mode**: Can be used as a command-line tool or imported as a module into your own Python projects.
-- **✌️ Three Flavors**:
-    1. `video_to_webp.py`: **Performance-focused** version that limits animations to 180 frames to prevent high resource usage. Ideal for most videos.
-    2. `video_to_webp_no_frame_limits.py`: **Power-user** version that removes the 180-frame limit for extra-long videos. Use with caution!
-    3. `video_to_webp_with_size_restriction.py`: **Size-conscious** version that automatically adjusts quality and frame count to keep the output file under a size cap (~500KB). Perfect for platforms with strict upload limits.
+- **Easy Conversion** — Convert any video to animated WebP with a single function call or CLI command.
+- **Multi-Format Support** — Works with WebM, MP4, GIF, MOV, MKV, and other common video formats.
+- **Smart Timing Preservation** — Automatically adjusts output FPS to match the original video's duration, so playback speed is preserved.
+- **Manual FPS Control** — Disable automatic timing to set a custom FPS for full control over playback speed.
+- **Configurable Frame Capping** — Limits output to 180 frames by default to save resources; easily adjust the cap or disable it entirely for long videos.
+- **Intelligent File Size Compression** — Automatically adjusts quality and frame count to meet a target file size (e.g., ≤ 256 KB), with an optional fast mode.
+- **Flexible Resize Modes** — Easily specify the output resolution and resize behavior (padding, cropping, stretching, etc.).
+- **Dual Usage** — Works as a CLI tool *and* as an importable Python module. Use the simple `convert_video_to_webp()` function or the `VideoToWebPConverter` class for batch work.
 
 ---
 
-## 🔧 Setup & Installation
+## Setup & Installation
 
-Before you can use the converter, you'll need to set up your environment.
+### 1. System Dependencies
 
+This tool uses `PyAV`, which requires **FFmpeg** installed on your system.
 
-### 1. Install System Dependencies (Crucial Step!)
-
-This tool relies on **FFmpeg** to decode videos. You must have FFmpeg installed on your system for the Python `av` library to work.
-
-* **On Fedora, CentOS, or RHEL (using DNF):**
+-   **Debian / Ubuntu:**
+    ```bash
+    sudo apt-get install ffmpeg
+    ```
+-   **Fedora / RHEL:**
     ```bash
     sudo dnf install ffmpeg
     ```
-
-* **On Debian/Ubuntu (using APT):**
-    ```bash
-    sudo apt update && sudo apt install ffmpeg
-    ```
-
-* **On macOS (using Homebrew):**
+-   **macOS (Homebrew):**
     ```bash
     brew install ffmpeg
     ```
 
-* **On Windows (using Chocolatey or Scoop):**
-    * With Chocolatey:
-        ```powershell
-        choco install ffmpeg
-        ```
-    * With Scoop:
-        ```powershell
-        scoop install ffmpeg
-        ```
+### 2. Clone & Install
 
-> **Note:** The `webp` Python library typically bundles the necessary `libwebp` binaries, but if you encounter issues, you may need to install the `libwebp-devel` (or similar) package from your system's package manager.
-
-
-### 2. Clone the Repository
-
-Get the project files by cloning the repository:
 ```bash
 git clone https://github.com/not-right-now/video_to_webp.git
 cd video_to_webp
-```
 
-### 3. Create and Activate a Virtual Environment
+# Create and activate a virtual environment (recommended)
+python3 -m venv venv
+source venv/bin/activate        # macOS / Linux
+# venv\Scripts\activate.bat     # Windows CMD
+# venv\Scripts\Activate.ps1     # Windows PowerShell
 
-It's highly recommended to use a virtual environment to keep project dependencies isolated.
-
-1.  **Create the environment** (run this inside the project folder):
-    ```bash
-    python3 -m venv venv
-    ```
-
-2.  **Activate the environment**:
-    -   **On macOS and Linux:**
-        ```bash
-        source venv/bin/activate
-        ```
-    -   **On Windows (Command Prompt):**
-        ```bash
-        venv\Scripts\activate.bat
-        ```
-    -   **On Windows (PowerShell):**
-        ```powershell
-        venv\Scripts\Activate.ps1
-        ```
-    > You will know the environment is active when you see `(venv)` at the beginning of your command prompt.
-
-### 4. Install Python Packages
-
-Install the required Python libraries using the `requirements.txt` file:
-```bash
+# Install dependencies
 pip install -r requirements.txt
 ```
+
 ---
 
-## 💡 How to Use
-
-You can use this tool directly from your terminal or import it into your Python scripts.
+## How to Use
 
 ### As a Command-Line Tool
 
-This is the quickest way to convert a single file. The arguments are the same for both `video_to_webp.py` and `video_to_webp_no_frame_limits.py`.
-
-**Basic Usage:**
+**Basic usage:**
 ```bash
-python video_to_webp.py path/to/your/input.mp4 path/to/your/output.webp
+python video_to_webp.py input.mp4 output.webp
 ```
 
-**Command-Line Arguments:**
-
-| Argument              | Description                                                                                             | Default    |
-| --------------------- | ------------------------------------------------------------------------------------------------------- | ---------- |
-| `input_file`          | (Required) Path to the input video file.                                                                  | -          |
-| `output_file`         | (Required) Path for the output WebP file.                                                               | -          |
-| `--width`             | Output width in pixels.                                                                                 | `Original` |
-| `--height`            | Output height in pixels.                                                                                | `Original` |
-| `--quality`           | WebP quality (0-100). Higher is better.                                                                 | `80`       |
-| `--fps`               | Frames per second. **Ignored by default** unless you use the `--no-preserve-timing` flag.               | `30`       |
-| `--no-preserve-timing`| A flag to disable automatic timing preservation and use the manual `--fps` value instead.                 | `False`    |
-
-**Example with custom settings:**
+**With custom settings:**
 ```bash
-python video_to_webp.py "demo_inp/animation.webm" "demo_out/custom.webp" --width 400 --height 400 --quality 95
+# Custom resolution and quality
+python video_to_webp.py input.mp4 output.webp --width 256 --height 256 --quality 90
+
+# Compress to fit under 256 KB
+python video_to_webp.py input.mp4 output.webp --max-size 256
+
+# Faster compression (allows 75%-100% of target)
+python video_to_webp.py input.mp4 output.webp --max-size 256 --fast
+
+# Render all frames (no 180-frame cap)
+python video_to_webp.py input.mp4 output.webp --no-frame-cap
+
+# Manual FPS (disables timing preservation)
+python video_to_webp.py input.mp4 output.webp --fps 15 --no-preserve-timing
+
+# Crop instead of padding when resizing
+python video_to_webp.py input.mp4 output.webp --width 256 --height 128 --crop
 ```
+
+**Full CLI reference:**
+
+| Argument | Description | Default |
+|---|---|---|
+| `input_file` | *(required)* Path to the input video file. | — |
+| `output_file` | *(required)* Path for the output WebP file. | — |
+| `--width` | Output width in pixels (`-1` = original). | `-1` |
+| `--height` | Output height in pixels (`-1` = original). | `-1` |
+| `--quality` | WebP quality (0–100). Higher = better but larger. | `40` |
+| `--max-frames` | Maximum frames to render (ignored if `--no-frame-cap`). | `180` |
+| `--max-size` | Target file size cap in **KB**. Enables smart compression. | `None` |
+| `--fps` | Frames per second (ignored unless `--no-preserve-timing`). | `30` |
+| `--no-frame-cap` | Disable the frame cap — render every frame. | off |
+| `--no-keep-aspect` | Stretch to fit target dimensions (ignore aspect ratio). | off |
+| `--no-upscale` | Prevent enlarging sources smaller than the target. | off |
+| `--crop` | When keeping aspect ratio, cover + center-crop instead of padding. | off |
+| `--no-preserve-timing` | Use the manual `--fps` value instead of auto-timing. | off |
+| `--fast` | Allow 75%–100% of `--max-size` for faster compression. | off |
+
+---
 
 ### As a Python Module
 
-Import the converter into your project for more programmatic control.
+#### Quick conversion
 
-**Simple Usage (Recommended):**
-The `convert_video_to_webp` function is a simple one-liner.
 ```python
 from video_to_webp import convert_video_to_webp
 
-success = convert_video_to_webp('input.mp4', 'output.webp', quality=90)
+# Simplest — all defaults
+convert_video_to_webp('input.mp4', 'output.webp')
 
-if success:
-    print("🎉 Conversion successful!")
-else:
-    print("😢 Conversion failed.")
+# Custom resolution & quality
+convert_video_to_webp('input.mp4', 'output.webp',
+                    width=256, height=256, quality=90)
+
+# Compress to ≤ 256 KB
+convert_video_to_webp('input.mp4', 'output.webp',
+                    max_size=256)
+
+# All frames, no cap
+convert_video_to_webp('input.mp4', 'output.webp',
+                    frame_cap=False)
+
+# Manual FPS
+convert_video_to_webp('input.mp4', 'output.webp',
+                    fps=15, preserve_timing=False)
 ```
 
-**Advanced Usage (Class-based):**
-For more complex scenarios, you can use the `VideoToWebPConverter` class. This is useful if you want to convert multiple files with the same settings.
+#### Class-based (batch / reuse)
+
 ```python
 from video_to_webp import VideoToWebPConverter
 
-# Configure the converter once
+# Configure once
 converter = VideoToWebPConverter(
     width=512,
-    height=384,
-    quality=85,
-    preserve_timing=True # This is the default
+    height=512,
+    quality=70,
+    max_size=512,           # ≤ 512 KB
+    preserve_timing=True,   # keep original speed
 )
 
-# Reuse it for multiple files
-converter.convert('video1.mp4', 'output1.webp')
-converter.convert('video2.webm', 'output2.webp')
+# Convert many files with the same settings
+converter.convert('video1.mp4', 'out1.webp')
+converter.convert('video2.webm', 'out2.webp')
+converter.convert('video3.gif', 'out3.webp')
 ```
+
+#### Full parameter reference — `convert_video_to_webp()`
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `video_path` | `str` | *(required)* | Path to input video file. |
+| `webp_path` | `str` | *(required)* | Path for output WebP file. |
+| `width` | `int` | `-1` | Output width (`-1` = original). |
+| `height` | `int` | `-1` | Output height (`-1` = original). |
+| `quality` | `int` | `40` | WebP quality (0–100). |
+| `frame_cap` | `bool` | `True` | Whether to cap the number of rendered frames. |
+| `max_frames` | `int` | `180` | Frame cap limit (ignored when `frame_cap=False`). |
+| `max_size` | `int\|None` | `None` | Target file size in **KB**. Enables smart compression. |
+| `keep_aspect` | `bool` | `True` | Preserve aspect ratio when resizing. |
+| `allow_upscale` | `bool` | `True` | Allow enlarging smaller sources to meet target. |
+| `pad` | `bool` | `True` | When `keep_aspect=True`: pad with transparency (`True`) or cover+crop (`False`). |
+| `fps` | `float` | `30.0` | Manual FPS (only used when `preserve_timing=False`). |
+| `preserve_timing` | `bool` | `True` | Auto-adjust FPS to keep original video duration. |
+| `compress_faster` | `bool` | `False` | Accept 75%–100% of `max_size` for faster compression. |
+
+**Returns:** `True` on success, `False` on failure.
 
 ---
 
-## 📦 The "File Size Restricted" Version
+## Running the Demo
 
-Do you need your final WebP file to be under a certain size (e.g., 500KB)? The `video_to_webp_with_size_restriction.py` script is your solution! It uses a smart optimization algorithm to find the best combination of frame count and quality to meet a target file size.
+A comprehensive demo script ([`demo.py`](demo.py)) is included to showcase every feature.
 
-**🚨 Warning:** This process can be slower than the other scripts because it has to pre-render all frames and then run multiple compression tests to find the optimal result.
+1.  **Input files:** The `demo_inp/` directory already contains sample video files. Feel free to add your own!
 
-To use it, simply point to the correct script file:
-
-**Command-Line:**
-```bash
-python video_to_webp_with_size_restriction.py your_video.webm your_output.webp
-```
-
-**Python Module:**
-```python
-# Import from the size-restricted script
-from video_to_webp_with_size_restriction.py import convert_video_to_webp
-
-# The rest of your code remains the same!
-success = convert_video_to_webp('animation.mp4', 'output_under_500kb.webp')
-```
-
----
-
-## ⚠️ The "No Frame Limits" Version
-
-For videos that are longer than 180 frames, the standard `video_to_webp.py` will cap the output at 180 frames to save memory and CPU time. If you absolutely need to render every single frame of a long video, you can use `video_to_webp_no_frame_limits.py`.
-
-**🚨 Warning:** Converting videos with a very high frame count can be resource-intensive and may consume a lot of RAM and CPU. Use this version wisely!
-
-To use it, simply change your import statement:
-
-```python
-# Instead of from video_to_webp import ...
-from video_to_webp_no_frame_limits import convert_video_to_webp, VideoToWebPConverter
-
-# The rest of your code remains the same!
-success = convert_video_to_webp('long_video.mp4', 'long_output.webp')
-```
-
----
-
-## 🎬 Running the Demo
-
-A comprehensive demo script (`demo.py`) is included to showcase all the features.
-
-1.  **Add video files**: Place your video files in the `demo_inp/` directory to get started. The demo includes sample files, or you can add your own!
-
-2.  **Run the script**:
+2.  **Run:**
     ```bash
     python demo.py
     ```
-    > **Note:** The demo script will first clear the `demo_out/` directory to ensure a fresh start for each run.
+    > The demo clears `demo_out/` at the start of each run for a fresh start.
 
-3.  **Check the results**: The script will run through various conversion scenarios and place all the output `.webp` files in the `demo_out/` directory for you to inspect.
+3.  **Inspect results:** All output `.webp` files are written to `demo_out/` with descriptive names like `resolution_256x256_Q70.webp`, `compress_256kb_strict.webp`, `resize_crop.webp`, etc.
+
+The demo covers: basic conversion, custom resolution & quality, frame capping, file size compression, resize modes (pad / crop / stretch / no-upscale), manual timing, and class-based batch usage.
 
 ---
 
-## 📜 License
+## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
