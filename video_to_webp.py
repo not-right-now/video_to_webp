@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 class VideoToWebPConverter:
     """Converter class for Video to WebP converter."""
     
+    _VALID_COLORSPACES = {0, 1, 2, 4, 5, 6, 7, 9}
+
     def __init__(self, width: int = -1, height: int = -1, quality: int = 80,
                 frame_cap: bool = True, max_frames: int = 180, max_size: int = None,
                 keep_aspect: bool = True, allow_upscale: bool = True, pad: bool = True,
@@ -119,6 +121,16 @@ class VideoToWebPConverter:
             except Exception:
                 return None
         return None
+
+    @staticmethod
+    def _fix_frame_colorspace(frame):
+        """
+        Fix frames with invalid/reserved colorspace metadata.
+        If the colorspace is not in the valid set, it defaults to BT.709 (1).
+        """
+        if frame.colorspace not in VideoToWebPConverter._VALID_COLORSPACES:
+            frame.colorspace = 1
+        return frame
 
 
     def _resize_frame(self, frame: Image) -> Image:
@@ -314,6 +326,7 @@ class VideoToWebPConverter:
                             if frame.time is not None:
                                 last_frame_time = frame.time
                             if frame_index in indices_to_keep:
+                                self._fix_frame_colorspace(frame)
                                 f_rgba = frame.reformat(format='rgba')
                                 arr = f_rgba.to_ndarray()
                                 pil_image = Image.fromarray(arr)
@@ -325,6 +338,7 @@ class VideoToWebPConverter:
                         if frame.time is not None:
                             last_frame_time = frame.time
                         if frame_index in indices_to_keep:
+                            self._fix_frame_colorspace(frame)
                             f_rgba = frame.reformat(format='rgba')
                             arr = f_rgba.to_ndarray()
                             pil_image = Image.fromarray(arr)
@@ -339,6 +353,7 @@ class VideoToWebPConverter:
                             last_frame_time = frame.time
                         # convert + resize and store only selected frames
                         if i in indices_to_keep:
+                            self._fix_frame_colorspace(frame)
                             pil_image = frame.to_image().convert("RGBA")
                             resized_image = self._resize_frame(pil_image)
                             frames.append(resized_image)
